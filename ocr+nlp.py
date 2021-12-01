@@ -1,42 +1,32 @@
-# ! apt install tesseract-ocr
-# ! apt install libtesseract-dev
 from PIL import Image
-# !pip install pytesseract
 import pytesseract
 from pytesseract import image_to_string
-# CUDA_LAUNCH_BLOCKING = "1"
 import torch
-# !pip install pytorch_pretrained_bert
 from pytorch_pretrained_bert import BertTokenizer, BertForMaskedLM
 import re
 import nltk
 from min_edit_dist import find_word
-nltk.download('brown')
-nltk.download('punkt')
-nltk.download('averaged_perceptron_tagger')
-nltk.download('maxent_ne_chunker')
-nltk.download('words')
-##import error_correction_mod
-# !apt install libenchant
-# !pip install pyenchant
-# !pip install --no-binary pyenchant
-# !apt-list --installed | grep enchant
-# !apt update
-# !apt install enchant --fix-missing
+# nltk.download('brown')
+# nltk.download('punkt')
+# nltk.download('averaged_perceptron_tagger')
+# nltk.download('maxent_ne_chunker')
+# nltk.download('words')
+
 from enchant.checker import SpellChecker
-##!pip install textblob
-##from textblob import TextBlob
-##!pip install pyspellchecker
-##from spellchecker import SpellChecker
 from difflib import SequenceMatcher
+
+# Using pytesseract for ocr
 
 pytesseract.pytesseract.tesseract_cmd = (
     r'/usr/bin/tesseract'
 )
-filename = 'sample.png'
+filename = 'sample2.jpg'
 text = str(pytesseract.image_to_string(Image.open(filename)))
-# text = "I amm a very generous perso. I donatd a fruit to a man toodayy."
-print ("Original sentence: ","\n",text)
+# text = "I amm a very generous perso. I donatd a frut to a man toodayy This is a teest sentence"
+text = text.replace(".","")
+
+print("Original text")
+print(text)
 
 # cleanup text
 rep = { '\n': ' ', '\\': ' ', '\"': '"', '-': ' ', '"': ' " ', 
@@ -47,12 +37,15 @@ rep = dict((re.escape(k), v) for k, v in rep.items())
 pattern = re.compile("|".join(rep.keys()))
 text = pattern.sub(lambda m: rep[re.escape(m.group(0))], text)
 
+Using minimum edit distance
+
 print("\nMinimum edit distance result: ")
 for word in text.split():
     pred = find_word(word)
     text = text.replace(word,pred)
 print(text)
 text_original = str(text)
+
 def get_personslist(text):
     personslist=[]
     for sent in nltk.sent_tokenize(text):
@@ -77,22 +70,28 @@ for w in incorrectwords:
     
 print("\nMasked text","\n",text)
 
-print(torch.cuda.device_count())
-print(torch.cuda.get_device_name(0))
+print("Device: ",torch.cuda.get_device_name(0))
 
 # Load, train and predict using pre-trained model
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 tokenized_text = tokenizer.tokenize(text)
 indexed_tokens = tokenizer.convert_tokens_to_ids(tokenized_text)
+print("\nIndexed tokens")
+print(indexed_tokens)
 MASKIDS = [i for i, e in enumerate(tokenized_text) if e == '[MASK]']
 # Create the segments tensors
 segs = [i for i, e in enumerate(tokenized_text) if e == "."]
 segments_ids=[]
 prev=-1
+
 for k, s in enumerate(segs):
     segments_ids = segments_ids + [k] * (s-prev)
     prev=s
 segments_ids = segments_ids + [len(segs)] * (len(tokenized_text) - len(segments_ids))
+
+print("\nSegment Ids: ")
+print(segments_ids)
+
 segments_tensors = torch.tensor([segments_ids])
 # prepare Torch inputs 
 tokens_tensor = torch.tensor([indexed_tokens])
@@ -105,7 +104,7 @@ model = BertForMaskedLM.from_pretrained('bert-base-uncased')
 # Predict all tokens
 with torch.no_grad():
     predictions = model(tokens_tensor, segments_tensors)
-predictions
+# predictions
 
 #Predict words for mask using BERT; 
 #refine prediction by matching with proposals from SpellChecker
